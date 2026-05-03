@@ -1,7 +1,5 @@
 # AEO Diagnostic — AI Search Visibility for Amazon Sellers
 
-Built for Pixii's Founding Engineer challenge. Deadline: May 5.
-
 ## The problem
 
 When a shopper asks Claude, ChatGPT, or Gemini "best magnesium for seniors", 
