@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEO Diagnostic — AI Search Visibility for Amazon Sellers</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080a;--surface:#101014;--surface2:#18181e;--border:#22222c;
+  --accent:#ff5c00;--accent2:#ffb800;--text:#ede9e4;--muted:#7a7880;
+  --good:#00c896;--warn:#ffb800;--bad:#ff4444;
+  --claude:#cc785c;--openai:#10a37f;--gemini:#4285f4;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,92,0,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,92,0,.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:48px 20px 100px}
+
+/* Header */
+.badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,92,0,.1);border:1px solid rgba(255,92,0,.25);color:var(--accent);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;padding:4px 10px;border-radius:4px;margin-bottom:18px;text-transform:uppercase}
+.badge::before{content:'●';font-size:8px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+h1{font-family:'Syne',sans-serif;font-size:clamp(30px,5.5vw,52px);font-weight:800;line-height:1.05;letter-spacing:-.03em;margin-bottom:10px}
+h1 em{color:var(--accent);font-style:normal}
+.sub{color:var(--muted);font-size:15px;font-weight:300;margin-bottom:36px;line-height:1.6;max-width:560px}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+.field-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:block}
+input[type=text],textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 14px;outline:none;transition:border-color .2s;line-height:1.5}
+input[type=text]:focus,textarea:focus{border-color:var(--accent)}
+input[type=text]::placeholder,textarea::placeholder{color:var(--muted)}
+textarea{resize:vertical;min-height:80px;font-size:13px;font-family:'DM Mono',monospace}
+.row{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+.half{flex:1;min-width:180px}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;padding:11px 28px;cursor:pointer;transition:transform .15s,opacity .15s;white-space:nowrap;align-self:flex-end}
+.btn:hover{transform:translateY(-1px);opacity:.92}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;padding:8px 16px;cursor:pointer;transition:border-color .2s}
+.btn-outline:hover{border-color:var(--accent)}
+
+/* Loading */
+.loading{display:none;flex-direction:column;gap:16px;padding:24px 0}
+.loading.show{display:flex}
+.load-row{display:flex;align-items:center;gap:10px;font-family:'DM Mono',monospace;font-size:12px}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.spinner.done{border:2px solid var(--good);background:var(--good);animation:none}
+.spinner.done::after{content:'';display:block;width:4px;height:7px;border:2px solid #000;border-top:none;border-left:none;transform:rotate(45deg) translate(-1px,-2px)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-label{color:var(--muted)}
+.load-label.done{color:var(--good)}
+
+/* Results */
+#results{display:none}
+#results.show{display:block;animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Score header */
+.score-header{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:16px;display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+.big-score{flex-shrink:0}
+.big-num{font-family:'Syne',sans-serif;font-size:64px;font-weight:800;line-height:1}
+.big-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.score-right{flex:1;min-width:200px}
+.grade-badge{display:inline-flex;align-items:center;gap:6px;font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:8px}
+.verdict-text{color:var(--muted);font-size:14px;line-height:1.6}
+
+/* Engine cards */
+.engines{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:16px}
+.engine-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+.engine-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px}
+.engine-card.claude-card::after{background:var(--claude)}
+.engine-card.openai-card::after{background:var(--openai)}
+.engine-card.gemini-card::after{background:var(--gemini)}
+.engine-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.engine-name{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.engine-name.claude{color:var(--claude)}
+.engine-name.openai{color:var(--openai)}
+.engine-name.gemini{color:var(--gemini)}
+.engine-score{font-family:'Syne',sans-serif;font-size:22px;font-weight:800}
+.visibility-bar{height:4px;background:var(--border);border-radius:2px;margin-bottom:10px;overflow:hidden}
+.visibility-fill{height:100%;border-radius:2px;transition:width 1s ease}
+.engine-finding{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:8px}
+.mention-tag{display:inline-flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid}
+.mention-tag.yes{background:rgba(0,200,150,.08);border-color:rgba(0,200,150,.25);color:var(--good)}
+.mention-tag.no{background:rgba(255,68,68,.06);border-color:rgba(255,68,68,.2);color:var(--bad)}
+.mention-tag.partial{background:rgba(255,184,0,.08);border-color:rgba(255,184,0,.25);color:var(--warn)}
+
+/* Competitors */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:14px}
+.section-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:8px;color:var(--muted)}
+.comp-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.comp-row:last-child{border-bottom:none;padding-bottom:0}
+.comp-rank{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);width:22px;flex-shrink:0}
+.comp-name{flex:1}
+.comp-engines{display:flex;gap:4px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.claude{background:var(--claude)}
+.dot.openai{background:var(--openai)}
+.dot.gemini{background:var(--gemini)}
+.dot.off{opacity:.2}
+
+/* Fixes */
+.fix-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;line-height:1.5}
+.fix-item:last-child{border-bottom:none;padding-bottom:0}
+.fix-num{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);min-width:20px;margin-top:2px}
+
+/* Responses */
+.response-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px;font-size:12px;font-family:'DM Mono',monospace;line-height:1.7;color:var(--muted);max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+.toggle-resp{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0;margin-top:6px;text-decoration:underline;text-underline-offset:2px}
+.toggle-resp:hover{color:var(--text)}
+
+/* Bottom */
+.built-by{margin-top:48px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em}
+.built-by a{color:var(--accent);text-decoration:none}
+.error-msg{background:rgba(255,68,68,.07);border:1px solid rgba(255,68,68,.2);border-radius:8px;padding:12px 16px;color:var(--bad);font-size:13px;font-family:'DM Mono',monospace;display:none;margin-bottom:16px}
+.error-msg.show{display:block}
+
+.key-note{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6;padding:10px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="badge">AEO Diagnostic · Built for Pixii</div>
+  <h1>Are you invisible<br>to <em>AI shoppers?</em></h1>
+  <p class="sub">Ask what your customer would ask. See how Claude, GPT-4, and Gemini answer — and where your product ranks against competitors.</p>
+
+  <div class="card">
+    <label class="field-label">Shopper query</label>
+    <input type="text" id="query" placeholder="e.g. best magnesium supplement for seniors with sleep problems" />
+
+    <div class="row">
+      <div class="half">
+        <label class="field-label" style="margin-top:14px">Your product / brand name</label>
+        <input type="text" id="product" placeholder="e.g. MagSleep Pro by NutriCore" />
+      </div>
+      <div class="half">
+        <label class="field-label" style="margin-top:14px">Your top competitor (optional)</label>
+        <input type="text" id="competitor" placeholder="e.g. Natural Vitality CALM" />
+      </div>
+    </div>
+
+    <div class="key-note">
+      ⚙ Powered by Claude API. GPT-4 and Gemini responses are simulated via Claude for demo purposes — in production, wire up OpenAI and Google AI APIs directly.
+    </div>
+
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="runBtn" onclick="runDiagnostic()">Run AEO Diagnostic →</button>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errMsg"></div>
+
+  <div class="loading" id="loading">
+    <div class="load-row" id="l1"><div class="spinner" id="s1"></div><span class="load-label" id="lt1">Querying Claude...</span></div>
+    <div class="load-row" id="l2"><div class="spinner" id="s2"></div><span class="load-label" id="lt2">Querying GPT-4...</span></div>
+    <div class="load-row" id="l3"><div class="spinner" id="s3"></div><span class="load-label" id="lt3">Querying Gemini...</span></div>
+    <div class="load-row" id="l4"><div class="spinner" id="s4"></div><span class="load-label" id="lt4">Generating report card...</span></div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="built-by">
+    Built by <a href="https://linkedin.com/in/shikhabansal7">Shikha Bansal</a> &nbsp;·&nbsp;
+    Powered by Claude API &nbsp;·&nbsp;
+    Made for <a href="https://pixii.ai">Pixii</a>
+  </div>
+</div>
+
+<script>
+function markDone(id, label) {
+  const s = document.getElementById('s' + id);
+  const lt = document.getElementById('lt' + id);
+  s.className = 'spinner done';
+  lt.textContent = label;
+  lt.className = 'load-label done';
+}
+
+function getScoreColor(s) {
+  if (s >= 70) return 'var(--good)';
+  if (s >= 40) return 'var(--warn)';
+  return 'var(--bad)';
+}
+
+function getGrade(s) {
+  if (s >= 80) return { g: 'A', label: 'Strong AI Presence', c: 'var(--good)' };
+  if (s >= 65) return { g: 'B', label: 'Visible but beatable', c: 'var(--good)' };
+  if (s >= 45) return { g: 'C', label: 'Weak AI coverage', c: 'var(--warn)' };
+  if (s >= 25) return { g: 'D', label: 'Nearly invisible', c: 'var(--bad)' };
+  return { g: 'F', label: 'Not found by AI', c: 'var(--bad)' };
+}
+
+function mentionTag(status) {
+  const map = {
+    'mentioned': ['yes', '✓ Mentioned'],
+    'top_result': ['yes', '✓ Top result'],
+    'partial': ['partial', '~ Partial'],
+    'not_mentioned': ['no', '✗ Not found'],
+  };
+  const [cls, txt] = map[status] || ['no', '✗ Not found'];
+  return `<span class="mention-tag ${cls}">${txt}</span>`;
+}
+
+function renderDots(engines) {
+  return ['claude', 'openai', 'gemini'].map(e =>
+    `<div class="dot ${e} ${engines.includes(e) ? '' : 'off'}" title="${e}"></div>`
+  ).join('');
+}
+
+function toggleResp(id) {
+  const el = document.getElementById(id);
+  const btn = document.querySelector(`[data-toggle="${id}"]`);
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = 'hide raw response ↑';
+  } else {
+    el.style.display = 'none';
+    btn.textContent = 'show raw response ↓';
+  }
+}
+
+function renderResults(data) {
+  const grade = getGrade(data.overall_score);
+  const sc = getScoreColor(data.overall_score);
+
+  const enginesHtml = data.engines.map(e => {
+    const eColor = e.id === 'claude' ? 'var(--claude)' : e.id === 'openai' ? 'var(--openai)' : 'var(--gemini)';
+    const respId = 'resp_' + e.id;
+    return `
+      <div class="engine-card ${e.id}-card">
+        <div class="engine-header">
+          <span class="engine-name ${e.id}">${e.name}</span>
+          <span class="engine-score" style="color:${getScoreColor(e.score)}">${e.score}</span>
+        </div>
+        <div class="visibility-bar"><div class="visibility-fill" style="width:${e.score}%;background:${eColor}"></div></div>
+        <p class="engine-finding">${e.finding}</p>
+        ${mentionTag(e.mention_status)}
+        ${e.raw_response ? `
+          <button class="toggle-resp" data-toggle="${respId}" onclick="toggleResp('${respId}')">show raw response ↓</button>
+          <div class="response-block" id="${respId}" style="display:none">${e.raw_response}</div>
+        ` : ''}
+      </div>`;
+  }).join('');
+
+  const compsHtml = (data.competitors || []).map((c, i) => `
+    <div class="comp-row">
+      <span class="comp-rank">${i + 1}.</span>
+      <span class="comp-name">${c.name} ${c.is_user ? '<span style="font-family:DM Mono,monospace;font-size:10px;color:var(--accent)">[YOU]</span>' : ''}</span>
+      <div class="comp-engines">${renderDots(c.mentioned_by || [])}</div>
+      <span style="font-family:DM Mono,monospace;font-size:11px;color:${getScoreColor(c.score)}">${c.score}/100</span>
+    </div>`).join('');
+
+  const fixesHtml = (data.fixes || []).map((f, i) => `
+    <div class="fix-item">
+      <span class="fix-num">${String(i + 1).padStart(2, '0')}</span>
+      <span>${f}</span>
+    </div>`).join('');
+
+  const pixiiHtml = `
+    <div class="fix-item" style="border:none;padding-top:0">
+      <span class="fix-num" style="color:var(--accent2)">★</span>
+      <span style="color:var(--text)">${data.pixii_angle}</span>
+    </div>`;
+
+  document.getElementById('results').innerHTML = `
+    <div class="score-header">
+      <div class="big-score">
+        <div class="big-num" style="color:${sc}">${data.overall_score}</div>
+        <div class="big-label">AEO Score / 100</div>
+      </div>
+      <div class="score-right">
+        <div class="grade-badge" style="color:${grade.c}">Grade ${grade.g} &mdash; ${grade.label}</div>
+        <p class="verdict-text">${data.verdict}</p>
+      </div>
+    </div>
+
+    <div class="engines">${enginesHtml}</div>
+
+    ${data.competitors?.length ? `
+    <div class="section">
+      <div class="section-title">AI ranking — your product vs competitors</div>
+      ${compsHtml}
+      <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--muted);font-family:DM Mono,monospace;display:flex;align-items:center;gap:4px"><span class="dot claude"></span>Claude</span>
+        <span style="font-size:11px;color:var(--muted);font-family:DM Mono,monospace;display:flex;align-items:center;gap:4px"><span class="dot openai"></span>GPT-4</span>
+        <span style="font-size:11px;color:var(--muted);font-family:DM Mono,monospace;display:flex;align-items:center;gap:4px"><span class="dot gemini"></span>Gemini</span>
+      </div>
+    </div>` : ''}
+
+    <div class="section">
+      <div class="section-title">Priority fixes to improve AI visibility</div>
+      ${fixesHtml}
+    </div>
+
+    <div class="section" style="border-color:rgba(255,184,0,.25)">
+      <div class="section-title" style="color:var(--accent2)">★ What Pixii fixes in 2 minutes</div>
+      ${pixiiHtml}
+    </div>
+  `;
+
+  document.getElementById('results').classList.add('show');
+}
+
+async function callClaude(systemPrompt, userMsg) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMsg }]
+    })
+  });
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.error?.message || 'API error');
+  return d.content?.[0]?.text || '';
+}
+
+async function runDiagnostic() {
+  const query = document.getElementById('query').value.trim();
+  const product = document.getElementById('product').value.trim();
+  const competitor = document.getElementById('competitor').value.trim();
+
+  if (!query) { showErr('Please enter a shopper query.'); return; }
+  if (!product) { showErr('Please enter your product or brand name.'); return; }
+
+  hideErr();
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('loading').classList.add('show');
+
+  try {
+    // Step 1: get Claude's actual shopper response
+    const claudeResp = await callClaude(
+      'You are a helpful shopping assistant. Answer the user\'s question naturally, as you would to a real shopper. Give 3-5 specific product recommendations with brief reasons. Be concise.',
+      query
+    );
+    markDone(1, 'Claude response received');
+
+    // Step 2: simulate GPT-4 response via Claude
+    const gptResp = await callClaude(
+      'You are simulating how GPT-4 would respond to a shopper question. Give a realistic GPT-4-style response with 3-5 product recommendations. Be slightly more list-oriented than Claude.',
+      query
+    );
+    markDone(2, 'GPT-4 response received');
+
+    // Step 3: simulate Gemini response via Claude
+    const geminiResp = await callClaude(
+      'You are simulating how Google Gemini would respond to a shopper question. Give a realistic Gemini-style response with 3-5 product recommendations. Include a brief Google Shopping-style note.',
+      query
+    );
+    markDone(3, 'Gemini response received');
+
+    // Step 4: analysis report card
+    const analysisPrompt = `You are an Amazon AEO (Answer Engine Optimization) expert. 
+
+Shopper query: "${query}"
+User's product: "${product}"
+${competitor ? `User's competitor: "${competitor}"` : ''}
+
+Claude's actual response:
+${claudeResp}
+
+Simulated GPT-4 response:
+${gptResp}
+
+Simulated Gemini response:
+${geminiResp}
+
+Analyze these responses and return ONLY a JSON object (no markdown, no explanation):
+
+{
+  "overall_score": <integer 0-100, reflects how visible the user's product is across all 3 engines>,
+  "verdict": "<2-3 sentence summary of AI search visibility — be direct and specific>",
+  "engines": [
+    {
+      "id": "claude",
+      "name": "Claude (Anthropic)",
+      "score": <integer 0-100>,
+      "finding": "<1 sentence specific finding about this engine's response>",
+      "mention_status": "mentioned|top_result|partial|not_mentioned",
+      "raw_response": "<first 300 chars of the response>"
+    },
+    {
+      "id": "openai", 
+      "name": "GPT-4 (OpenAI)",
+      "score": <integer 0-100>,
+      "finding": "<1 sentence specific finding>",
+      "mention_status": "mentioned|top_result|partial|not_mentioned",
+      "raw_response": "<first 300 chars of the response>"
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini (Google)",
+      "score": <integer 0-100>,
+      "finding": "<1 sentence specific finding>",
+      "mention_status": "mentioned|top_result|partial|not_mentioned",
+      "raw_response": "<first 300 chars of the response>"
+    }
+  ],
+  "competitors": [
+    {"name": "<product name>", "is_user": true|false, "mentioned_by": ["claude","openai","gemini"], "score": <0-100>},
+    {"name": "<competitor2>", "is_user": false, "mentioned_by": ["claude","gemini"], "score": <0-100>},
+    {"name": "<competitor3>", "is_user": false, "mentioned_by": ["claude"], "score": <0-100>},
+    {"name": "<competitor4>", "is_user": false, "mentioned_by": ["openai","gemini"], "score": <0-100>},
+    {"name": "<competitor5>", "is_user": false, "mentioned_by": ["gemini"], "score": <0-100>}
+  ],
+  "fixes": [
+    "<specific, actionable fix 1 to improve AI search visibility>",
+    "<specific fix 2 — mention a content or listing change>",
+    "<specific fix 3 — keyword or positioning recommendation>",
+    "<specific fix 4 — trust signal or review-related fix>"
+  ],
+  "pixii_angle": "<1 sentence on how Pixii's visual AI design would make this listing more likely to be recommended by AI shoppers — connect beautiful listing design to AI trust signals>"
+}`;
+
+    const analysisRaw = await callClaude('You are an AEO expert. Return only valid JSON.', analysisPrompt);
+    markDone(4, 'Report card ready');
+
+    await new Promise(r => setTimeout(r, 500));
+    document.getElementById('loading').classList.remove('show');
+    document.getElementById('runBtn').disabled = false;
+
+    const clean = analysisRaw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    renderResults(parsed);
+
+  } catch (err) {
+    document.getElementById('loading').classList.remove('show');
+    document.getElementById('runBtn').disabled = false;
+    showErr('Error: ' + err.message);
+  }
+}
+
+function showErr(m) {
+  const e = document.getElementById('errMsg');
+  e.textContent = m;
+  e.classList.add('show');
+}
+
+function hideErr() {
+  document.getElementById('errMsg').classList.remove('show');
+}
+
+document.getElementById('query').addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runDiagnostic();
+});
+</script>
+</body>
+</html>
